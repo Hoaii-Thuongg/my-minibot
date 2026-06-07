@@ -2,47 +2,670 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mini App Đầu Tay</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SUPERGARDENING</title>
     <!-- Thư viện Telegram Web App -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+    <!-- Firebase SDK (module) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, updateDoc, getDoc, collection, query, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCBCCAZ9xJYGLmEEmau0W0nM1qVtudbwoI",
+            authDomain: "supergardening-2445b.firebaseapp.com",
+            projectId: "supergardening-2445b",
+            storageBucket: "supergardening-2445b.firebasestorage.app",
+            messagingSenderId: "1040782739834",
+            appId: "1:1040782739834:web:19008aa3cadf552885aec3"
+            // bỏ measurementId nếu không dùng Analytics
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // Đưa các hàm Firestore ra ngoài cho script chính
+        window.db = db;
+        window.FirestoreDoc = doc;
+        window.FirestoreSetDoc = setDoc;
+        window.FirestoreUpdateDoc = updateDoc;
+        window.FirestoreGetDoc = getDoc;
+        window.FirestoreCollection = collection;
+        window.FirestoreQuery = query;
+        window.FirestoreOrderBy = orderBy;
+        window.FirestoreLimit = limit;
+        window.FirestoreGetDocs = getDocs;
+    </script>
+
     <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #e8f5e9 0%, #fff8e1 100%);
+            color: #2e3b2c;
+            min-height: 100vh;
+            padding-bottom: 70px;
+            transition: background 0.3s, color 0.3s;
+        }
+        .container { max-width: 480px; margin: 0 auto; padding: 12px; }
+        .header {
+            background: linear-gradient(90deg, #43a047, #66bb6a);
+            color: white;
+            border-radius: 16px;
+            padding: 15px 20px;
+            margin-bottom: 12px;
+            box-shadow: 0 4px 12px rgba(76,175,80,0.3);
+            text-align: center;
+        }
+        .header h1 { font-size: 24px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        .card-title { font-weight: bold; font-size: 18px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
+        .fruit-card {
+            background: #f1f8e9;
+            border-radius: 16px;
+            padding: 12px 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.2s;
+            border: 2px solid transparent;
+        }
+        .fruit-card:active { transform: scale(0.95); }
+        .fruit-card.selected { border-color: #ffb74d; background: #fff3e0; }
+        .fruit-emoji { font-size: 40px; display: block; }
+        .btn {
+            background: linear-gradient(90deg, #43a047, #66bb6a);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            padding: 12px 20px;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            transition: opacity 0.2s;
+            box-shadow: 0 4px 10px rgba(76,175,80,0.3);
+        }
+        .btn:active { opacity: 0.8; }
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 14px;
+            width: auto;
+            display: inline-block;
+            margin: 4px;
+        }
+        .btn-danger { background: linear-gradient(90deg, #ef5350, #e57373); }
+        .btn-outline {
+            background: white;
+            border: 2px solid #43a047;
+            color: #43a047;
+            box-shadow: none;
+        }
+        .balance { font-size: 28px; font-weight: bold; color: #2e7d32; margin: 8px 0; }
+        .tab-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
             display: flex;
-            flex-direction: column;
+            justify-content: space-around;
+            padding: 8px 0;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+            z-index: 100;
+            border-top-left-radius: 20px;
+            border-top-right-radius: 20px;
+        }
+        .tab-item {
+            flex: 1;
+            text-align: center;
+            padding: 5px;
+            color: #757575;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-radius: 12px;
+            margin: 0 4px;
+        }
+        .tab-item.active { color: #2e7d32; font-weight: bold; background: #e8f5e9; }
+        .page { display: none; }
+        .page.active { display: block; }
+        .notification { background: #fff9c4; border-left: 4px solid #ffb300; padding: 10px; border-radius: 8px; margin-bottom: 8px; }
+        .event { background: #e1f5fe; border-radius: 12px; padding: 12px; margin-bottom: 8px; }
+        .rank-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .rank-number { font-weight: bold; font-size: 20px; width: 30px; }
+        .team-card { background: #f0f4c3; border-radius: 14px; padding: 12px; margin-bottom: 8px; }
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid #c8e6c9;
+            background: #f9fbe7;
+            margin: 8px 0;
+            font-size: 16px;
+        }
+        .hidden { display: none; }
+        .modal {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
             align-items: center;
             justify-content: center;
-            height: 100vh;
-            margin: 0;
-            text-align: center;
+            z-index: 200;
+        }
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            padding: 20px;
+            width: 90%;
+            max-width: 400px;
         }
     </style>
 </head>
 <body>
-    <h1>🎉 Chào mừng bạn!</h1>
-    <p id="user-info">Đang tải thông tin người dùng...</p>
+<div class="container">
+    <!-- HEADER -->
+    <div class="header">
+        <h1>🌱 SUPERGARDENING</h1>
+        <p style="font-size:14px; opacity:0.9;">Trồng cây – Thu quả ngọt</p>
+    </div>
 
-    <script>
-        // Kết nối với Telegram
-        const tg = window.Telegram.WebApp;
+    <!-- PAGES -->
+    <div id="page-home" class="page active">
+        <div class="card">
+            <div class="card-title">📢 Thông báo</div>
+            <div class="notification">🎉 Chào mừng nhà đầu tư mới! Nhận ngay 5.000đ khi đăng ký.</div>
+            <div class="notification">⭐ Sự kiện mùa hè: Lãi suất x2 cho gói Dưa hấu và Đào trong tuần này!</div>
+        </div>
+        <div class="card">
+            <div class="card-title">📅 Điểm danh hằng ngày</div>
+            <p>Nhận <b>1.000đ</b> mỗi ngày</p>
+            <button class="btn" id="checkin-btn">✅ Điểm danh (+1.000đ)</button>
+            <p style="margin-top:4px; font-size:12px; color:#888;" id="checkin-status"></p>
+        </div>
+        <div class="card">
+            <div class="card-title">📞 Hỗ trợ Admin</div>
+            <p>Telegram: <a href="https://t.me/admin_supergardening" target="_blank">@admin_supergardening</a></p>
+            <p>Email: support@supergardening.vn</p>
+        </div>
+    </div>
 
-        // Báo cho Telegram biết app đã sẵn sàng hiển thị
-        tg.ready();
+    <!-- BẢNG XẾP HẠNG -->
+    <div id="page-leaderboard" class="page">
+        <div class="card">
+            <div class="card-title">🏆 Top 10 Người Trồng Cây</div>
+            <div id="leaderboard-list"></div>
+        </div>
+    </div>
 
-        // Lấy dữ liệu người dùng (chỉ hoạt động khi mở trong Telegram)
-        const user = tg.initDataUnsafe?.user;
-        const infoElement = document.getElementById('user-info');
+    <!-- ĐỘI NHÓM -->
+    <div id="page-team" class="page">
+        <div class="card">
+            <div class="card-title">👥 Đội của tôi</div>
+            <p>Bạn nhận <b>15%</b> từ lãi của người bạn mời trực tiếp (F1)</p>
+            <button class="btn btn-outline" id="copy-ref-link">🔗 Sao chép link giới thiệu</button>
+            <div id="team-list" style="margin-top:12px;"></div>
+        </div>
+    </div>
 
-        if (user) {
-            infoElement.innerText = `Xin chào ${user.first_name}! ID của bạn là ${user.id}.`;
-        } else {
-            infoElement.innerText = 'Bạn đang xem bên ngoài Telegram. Vào bot để trải nghiệm thật nhé!';
+    <!-- TÀI KHOẢN -->
+    <div id="page-account" class="page">
+        <div class="card">
+            <div class="card-title">👤 Tài khoản</div>
+            <p>Tên: <span id="user-name">...</span></p>
+            <p>ID: <span id="user-id">...</span></p>
+            <p class="balance" id="balance-display">0đ</p>
+            <button class="btn" id="deposit-btn">💰 Nạp tiền (Demo)</button>
+        </div>
+        <div class="card">
+            <div class="card-title">🌿 Đầu tư</div>
+            <p>Chọn gói:</p>
+            <div class="grid-3" id="package-list"></div>
+            <button class="btn" id="invest-btn" style="margin-top:8px;">🌱 Đầu tư</button>
+            <div id="investment-status" style="margin-top:8px; font-size:14px;"></div>
+        </div>
+        <div class="card">
+            <div class="card-title">💸 Rút tiền</div>
+            <p>Min: 20k – Phí: 2% (20k-<50k), 5% (50k-<100k), 7% (>=100k)</p>
+            <input type="number" id="withdraw-amount" placeholder="Nhập số tiền rút" min="20000">
+            <button class="btn btn-danger" id="withdraw-btn">Rút ngay</button>
+            <p style="font-size:12px; color:#888;" id="withdraw-status"></p>
+        </div>
+    </div>
+</div>
+
+<!-- TAB NAV -->
+<div class="tab-nav">
+    <div class="tab-item active" data-page="home">🏠 Trang chủ</div>
+    <div class="tab-item" data-page="leaderboard">🏆 Xếp hạng</div>
+    <div class="tab-item" data-page="team">👥 Đội nhóm</div>
+    <div class="tab-item" data-page="account">👤 Tài khoản</div>
+</div>
+
+<!-- MODAL NẠP TIỀN -->
+<div id="deposit-modal" class="modal hidden">
+    <div class="modal-content">
+        <h3>Nạp tiền thử nghiệm</h3>
+        <input type="number" id="deposit-amount-input" placeholder="Số tiền (VNĐ)" min="10000">
+        <p style="font-size:12px;">Nạp từ 6h-18h: lãi tính từ hôm sau. Sau 18h: tính từ hôm kia.</p>
+        <button class="btn" id="confirm-deposit">Xác nhận</button>
+        <button class="btn btn-outline" id="close-deposit">Đóng</button>
+    </div>
+</div>
+
+<script>
+    // ========== CẤU HÌNH ==========
+    const PACKAGES = [
+        { name: 'Dâu', emoji: '🍓', amount: 50000, rate: 0.02 },
+        { name: 'Cam', emoji: '🍊', amount: 100000, rate: 0.025 },
+        { name: 'Nho', emoji: '🍇', amount: 400000, rate: 0.03 },
+        { name: 'Dưa hấu', emoji: '🍉', amount: 800000, rate: 0.035 },
+        { name: 'Đào', emoji: '🍑', amount: 1000000, rate: 0.04 },
+        { name: 'Cherry', emoji: '🍒', amount: 1200000, rate: 0.045 },
+        { name: 'Kiwi', emoji: '🥝', amount: 1500000, rate: 0.05 }
+    ];
+
+    // ========== TELEGRAM ==========
+    const tg = window.Telegram.WebApp;
+    tg.ready();
+    const user = tg.initDataUnsafe?.user || { first_name: 'Người dùng', id: 'local' };
+    const userId = user.id.toString();
+    document.getElementById('user-name').textContent = user.first_name || 'Bạn';
+    document.getElementById('user-id').textContent = userId;
+
+    // ========== FIRESTORE TIỆN ÍCH ==========
+    const db = window.db;
+    const docRef = window.FirestoreDoc;
+    const setDoc = window.FirestoreSetDoc;
+    const updateDoc = window.FirestoreUpdateDoc;
+    const getDoc = window.FirestoreGetDoc;
+    const collection = window.FirestoreCollection;
+    const query = window.FirestoreQuery;
+    const orderBy = window.FirestoreOrderBy;
+    const limit = window.FirestoreLimit;
+    const getDocs = window.FirestoreGetDocs;
+
+    function userDoc() {
+        return docRef(db, "users", userId);
+    }
+
+    async function getBalance() {
+        const snap = await getDoc(userDoc());
+        return snap.exists() ? (snap.data().balance || 0) : 0;
+    }
+
+    async function setBalance(val) {
+        await setDoc(userDoc(), { balance: val }, { merge: true });
+    }
+
+    async function getInvestments() {
+        const snap = await getDoc(userDoc());
+        return snap.exists() ? (snap.data().investments || []) : [];
+    }
+
+    async function setInvestments(arr) {
+        await setDoc(userDoc(), { investments: arr }, { merge: true });
+    }
+
+    async function getCheckinDate() {
+        const snap = await getDoc(userDoc());
+        return snap.exists() ? snap.data().lastCheckin : null;
+    }
+
+    async function setCheckinDate(date) {
+        await setDoc(userDoc(), { lastCheckin: date }, { merge: true });
+    }
+
+    async function getLastWithdrawalDate() {
+        const snap = await getDoc(userDoc());
+        return snap.exists() ? snap.data().lastWithdrawalDate : null;
+    }
+
+    async function setLastWithdrawalDate(date) {
+        await setDoc(userDoc(), { lastWithdrawalDate: date }, { merge: true });
+    }
+
+    async function getRefs() {
+        const snap = await getDoc(userDoc());
+        return snap.exists() ? (snap.data().refs || []) : [];
+    }
+
+    async function setRefs(refs) {
+        await setDoc(userDoc(), { refs: refs }, { merge: true });
+    }
+
+    async function saveUserName(name) {
+        await setDoc(userDoc(), { name: name }, { merge: true });
+    }
+
+    // ========== TIỆN ÍCH ==========
+    function formatCurrency(num) {
+        return num.toLocaleString('vi-VN') + 'đ';
+    }
+
+    function todayStr() {
+        return new Date().toISOString().slice(0,10);
+    }
+
+    function addDays(dateStr, days) {
+        let d = new Date(dateStr);
+        d.setDate(d.getDate() + days);
+        return d.toISOString().slice(0,10);
+    }
+
+    function daysBetween(date1, date2) {
+        return Math.floor((new Date(date2) - new Date(date1)) / 86400000);
+    }
+
+    // ========== CẬP NHẬT LÃI ==========
+    async function updateAllProfits() {
+        let investments = await getInvestments();
+        if (investments.length === 0) return;
+        let balance = await getBalance();
+        let changed = false;
+        const today = todayStr();
+        investments.forEach(inv => {
+            if (!inv.lastProfitDate) inv.lastProfitDate = inv.startDate;
+            if (today > inv.lastProfitDate) {
+                let days = daysBetween(inv.lastProfitDate, today);
+                if (days > 0) {
+                    let profit = Math.floor(inv.amount * inv.rate * days);
+                    balance += profit;
+                    inv.lastProfitDate = today;
+                    inv.collectedProfit = (inv.collectedProfit || 0) + profit;
+                    changed = true;
+                }
+            }
+        });
+        if (changed) {
+            await setBalance(balance);
+            await setInvestments(investments);
+            // Cập nhật tổng lãi cho bảng xếp hạng
+            let totalCollected = investments.reduce((sum, inv) => sum + (inv.collectedProfit || 0), 0);
+            await updateDoc(userDoc(), { collectedProfit: totalCollected });
         }
+    }
 
-        // Đặt màu nền và chữ theo theme của Telegram
-        document.body.style.backgroundColor = tg.backgroundColor;
-        document.body.style.color = tg.textColor;
-    </script>
+    // ========== HIỂN THỊ ==========
+    async function updateBalanceDisplay() {
+        const balance = await getBalance();
+        document.getElementById('balance-display').textContent = formatCurrency(balance);
+    }
+
+    async function updateCheckinButton() {
+        const last = await getCheckinDate();
+        const today = todayStr();
+        const btn = document.getElementById('checkin-btn');
+        const status = document.getElementById('checkin-status');
+        if (last === today) {
+            btn.disabled = true;
+            btn.textContent = '✅ Đã điểm danh hôm nay';
+            status.textContent = 'Bạn đã nhận 1.000đ hôm nay.';
+        } else {
+            btn.disabled = false;
+            btn.textContent = '✅ Điểm danh (+1.000đ)';
+            status.textContent = '';
+        }
+    }
+
+    let selectedPackage = null;
+    function renderPackages() {
+        const container = document.getElementById('package-list');
+        container.innerHTML = '';
+        PACKAGES.forEach((pkg, index) => {
+            const div = document.createElement('div');
+            div.className = 'fruit-card';
+            div.innerHTML = `<span class="fruit-emoji">${pkg.emoji}</span>
+                             <div style="font-size:14px; font-weight:bold;">${pkg.name}</div>
+                             <div style="font-size:13px;">${formatCurrency(pkg.amount)}</div>
+                             <div style="font-size:12px; color:#2e7d32;">Lãi ${Math.round(pkg.rate*100)}%/ngày</div>`;
+            div.onclick = () => {
+                document.querySelectorAll('.fruit-card').forEach(c => c.classList.remove('selected'));
+                div.classList.add('selected');
+                selectedPackage = index;
+            };
+            container.appendChild(div);
+        });
+    }
+
+    // ========== HÀNH ĐỘNG ==========
+    async function invest() {
+        if (selectedPackage === null) { tg.showAlert('Vui lòng chọn gói đầu tư!'); return; }
+        const pkg = PACKAGES[selectedPackage];
+        const balance = await getBalance();
+        if (balance < pkg.amount) { tg.showAlert('Số dư không đủ!'); return; }
+        const now = new Date();
+        const hour = now.getHours();
+        let startDate;
+        if (hour >= 6 && hour < 18) {
+            startDate = addDays(todayStr(), 1);
+        } else {
+            startDate = addDays(todayStr(), 2);
+        }
+        const inv = {
+            id: Date.now(),
+            packageIndex: selectedPackage,
+            amount: pkg.amount,
+            rate: pkg.rate,
+            startDate: startDate,
+            lastProfitDate: startDate,
+            collectedProfit: 0
+        };
+        const investments = await getInvestments();
+        investments.push(inv);
+        await setInvestments(investments);
+        await setBalance(balance - pkg.amount);
+        await updateBalanceDisplay();
+        document.getElementById('investment-status').innerText = `Đã đầu tư ${pkg.name} (${formatCurrency(pkg.amount)}), lãi bắt đầu từ ${new Date(startDate).toLocaleDateString('vi-VN')}`;
+        selectedPackage = null;
+        document.querySelectorAll('.fruit-card').forEach(c => c.classList.remove('selected'));
+    }
+
+    async function withdraw() {
+        const last = await getLastWithdrawalDate();
+        const today = todayStr();
+        if (last === today) { tg.showAlert('Mỗi ngày chỉ rút được 1 lần!'); return; }
+        const amount = parseInt(document.getElementById('withdraw-amount').value);
+        if (!amount || amount < 20000) { tg.showAlert('Tối thiểu 20.000đ'); return; }
+        let feePercent;
+        if (amount >= 100000) feePercent = 0.07;
+        else if (amount >= 50000) feePercent = 0.05;
+        else feePercent = 0.02;
+        const fee = Math.floor(amount * feePercent);
+        const receive = amount - fee;
+        if (receive < 20000) { tg.showAlert('Sau phí nhận dưới 20k, không hợp lệ'); return; }
+        const balance = await getBalance();
+        if (balance < amount) { tg.showAlert('Số dư không đủ'); return; }
+        await setBalance(balance - amount);
+        await setLastWithdrawalDate(today);
+        await updateBalanceDisplay();
+        document.getElementById('withdraw-status').innerText = `Đã rút ${formatCurrency(amount)}, nhận được ${formatCurrency(receive)} (phí ${feePercent*100}%)`;
+    }
+
+    function showDepositModal() {
+        document.getElementById('deposit-modal').classList.remove('hidden');
+    }
+
+    function hideDepositModal() {
+        document.getElementById('deposit-modal').classList.add('hidden');
+    }
+
+    async function confirmDeposit() {
+        const amount = parseInt(document.getElementById('deposit-amount-input').value);
+        if (!amount || amount <= 0) { tg.showAlert('Nhập số tiền hợp lệ'); return; }
+        const now = new Date();
+        const hour = now.getHours();
+        let note = '';
+        if (hour >= 6 && hour < 18) note = 'Lãi sẽ được tính từ ngày mai.';
+        else note = 'Nạp sau 18h, lãi tính từ ngày kia.';
+        const balance = await getBalance();
+        await setBalance(balance + amount);
+        await updateBalanceDisplay();
+        tg.showAlert('Nạp thành công ' + formatCurrency(amount) + '. ' + note);
+        hideDepositModal();
+    }
+
+    async function copyRefLink() {
+        const refCode = userId;
+        const botUsername = 'supergardening_bot';
+        const link = `https://t.me/${supergardening_bot}?start=${refCode}`;
+        try {
+            await navigator.clipboard.writeText(link);
+            tg.showAlert('Link giới thiệu đã được sao chép!');
+        } catch (e) {
+            tg.showAlert('Link: ' + link);
+        }
+    }
+
+    // ========== BẢNG XẾP HẠNG ==========
+    async function renderLeaderboard() {
+        const list = document.getElementById('leaderboard-list');
+        const q = query(collection(db, "users"), orderBy("collectedProfit", "desc"), limit(10));
+        const snapshot = await getDocs(q);
+        let html = '';
+        let rank = 1;
+        snapshot.forEach(docSnap => {
+            const data = docSnap.data();
+            html += `<div class="rank-item">
+                <div class="rank-number">#${rank++}</div>
+                <div style="flex:1; font-weight:bold;">${data.name || 'Ẩn danh'}</div>
+                <div style="color:#2e7d32;">+${formatCurrency(data.collectedProfit || 0)}</div>
+            </div>`;
+        });
+        list.innerHTML = html || '<p>Chưa có dữ liệu</p>';
+    }
+
+    // ========== ĐỘI NHÓM ==========
+    async function renderTeam() {
+        const list = document.getElementById('team-list');
+        const refs = await getRefs();
+        if (refs.length === 0) {
+            list.innerHTML = '<p style="color:#888;">Bạn chưa có người giới thiệu nào. Hãy mời bạn bè!</p>';
+            return;
+        }
+        let html = '';
+        for (let r of refs) {
+            // Lấy profit của ref từ Firestore
+            const refDocSnap = await getDoc(docRef(db, "users", r.id));
+            const refData = refDocSnap.exists() ? refDocSnap.data() : {};
+            const refProfit = refData.collectedProfit || r.profit || 0;
+            html += `<div class="team-card">
+                <span>🌿 ${r.name} (ID: ${r.id})</span>
+                <span style="float:right;">Lãi: ${formatCurrency(refProfit)} → Bạn nhận ${formatCurrency(Math.floor(refProfit * 0.15))}</span>
+            </div>`;
+        }
+        list.innerHTML = html;
+    }
+
+    // ========== CHUYỂN TAB ==========
+    function switchPage(pageId) {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.getElementById(`page-${pageId}`).classList.add('active');
+        document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+        document.querySelector(`.tab-item[data-page="${pageId}"]`).classList.add('active');
+    }
+
+    // ========== XỬ LÝ GIỚI THIỆU (START PARAM) ==========
+    async function handleReferral() {
+        if (tg.initDataUnsafe?.start_param) {
+            const refId = tg.initDataUnsafe.start_param;
+            const myDocSnap = await getDoc(userDoc());
+            const myData = myDocSnap.exists() ? myDocSnap.data() : {};
+            if (!myData.invitedBy) {
+                await setDoc(userDoc(), { invitedBy: refId }, { merge: true });
+                // Cập nhật refs của người mời
+                const refDoc = docRef(db, "users", refId);
+                const refSnap = await getDoc(refDoc);
+                if (refSnap.exists()) {
+                    let refData = refSnap.data();
+                    let refs = refData.refs || [];
+                    if (!refs.some(r => r.id === userId)) {
+                        refs.push({ id: userId, name: user.first_name || 'Người mới', profit: 0 });
+                        await setDoc(refDoc, { refs: refs }, { merge: true });
+                        // Thưởng 2k cho người mới
+                        let bal = await getBalance();
+                        bal += 2000;
+                        await setBalance(bal);
+                        await updateBalanceDisplay();
+                        tg.showAlert('Bạn được giới thiệu! Nhận 2.000đ thưởng.');
+                    }
+                }
+            }
+        }
+    }
+
+    // ========== KHỞI TẠO ==========
+    async function initApp() {
+        // Đảm bảo db đã sẵn sàng
+        if (!window.db) {
+            setTimeout(initApp, 200);
+            return;
+        }
+        await saveUserName(user.first_name || 'Người dùng');
+        await handleReferral();
+        await updateAllProfits();
+        await updateBalanceDisplay();
+        await updateCheckinButton();
+        renderPackages();
+        await renderLeaderboard();
+        await renderTeam();
+
+        // Gắn sự kiện
+        document.getElementById('checkin-btn').addEventListener('click', async () => {
+            const last = await getCheckinDate();
+            if (last === todayStr()) return;
+            await setCheckinDate(todayStr());
+            let bal = await getBalance();
+            bal += 1000;
+            await setBalance(bal);
+            await updateBalanceDisplay();
+            await updateCheckinButton();
+            tg.showAlert('Điểm danh thành công! +1.000đ');
+        });
+
+        document.getElementById('invest-btn').addEventListener('click', invest);
+        document.getElementById('withdraw-btn').addEventListener('click', withdraw);
+        document.getElementById('deposit-btn').addEventListener('click', showDepositModal);
+        document.getElementById('confirm-deposit').addEventListener('click', confirmDeposit);
+        document.getElementById('close-deposit').addEventListener('click', hideDepositModal);
+        document.getElementById('copy-ref-link').addEventListener('click', copyRefLink);
+
+        document.querySelectorAll('.tab-item').forEach(tab => {
+            tab.addEventListener('click', () => switchPage(tab.dataset.page));
+        });
+
+        // Cập nhật định kỳ
+        setInterval(async () => {
+            await updateAllProfits();
+            await updateBalanceDisplay();
+        }, 60000);
+    }
+
+    // Bắt đầu khi window đã sẵn sàng
+    window.addEventListener('load', () => {
+        // Chờ Firebase module hoàn thành
+        if (window.db) {
+            initApp();
+        } else {
+            // thử lại sau 500ms
+            setTimeout(initApp, 500);
+        }
+    });
+</script>
 </body>
 </html>
