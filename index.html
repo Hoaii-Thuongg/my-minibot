@@ -19,7 +19,6 @@
             storageBucket: "supergardening-2445b.firebasestorage.app",
             messagingSenderId: "1040782739834",
             appId: "1:1040782739834:web:19008aa3cadf552885aec3"
-            // bỏ measurementId nếu không dùng Analytics
         };
 
         const app = initializeApp(firebaseConfig);
@@ -158,7 +157,7 @@
             margin: 8px 0;
             font-size: 16px;
         }
-        .hidden { display: none; }
+        .hidden { display: none !important; }
         .modal {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
@@ -186,6 +185,7 @@
     </div>
 
     <!-- PAGES -->
+    <!-- TRANG CHỦ -->
     <div id="page-home" class="page active">
         <div class="card">
             <div class="card-title">📢 Thông báo</div>
@@ -199,9 +199,9 @@
             <p style="margin-top:4px; font-size:12px; color:#888;" id="checkin-status"></p>
         </div>
         <div class="card">
-            <div class="card-title">📞 Hỗ trợ Admin</div>
-            <p>Telegram: <a href="https://t.me/admin_supergardening" target="_blank">@admin_supergardening</a></p>
-            <p>Email: support@supergardening.vn</p>
+            <div class="card-title">📞 Hỗ trợ</div>
+            <p>👤 Admin: <a href="https://t.me/lunexan" target="_blank">@lunexan</a></p>
+            <p>💬 CSKH: <a href="https://t.me/Hoaii_thuongg" target="_blank">@Hoaii_thuongg</a></p>
         </div>
     </div>
 
@@ -395,7 +395,6 @@
         if (changed) {
             await setBalance(balance);
             await setInvestments(investments);
-            // Cập nhật tổng lãi cho bảng xếp hạng
             let totalCollected = investments.reduce((sum, inv) => sum + (inv.collectedProfit || 0), 0);
             await updateDoc(userDoc(), { collectedProfit: totalCollected });
         }
@@ -503,26 +502,40 @@
 
     function hideDepositModal() {
         document.getElementById('deposit-modal').classList.add('hidden');
+        document.getElementById('deposit-amount-input').value = '';
     }
 
     async function confirmDeposit() {
-        const amount = parseInt(document.getElementById('deposit-amount-input').value);
-        if (!amount || amount <= 0) { tg.showAlert('Nhập số tiền hợp lệ'); return; }
+        const amountInput = document.getElementById('deposit-amount-input');
+        const amount = parseInt(amountInput.value);
+        if (!amount || amount <= 0) {
+            tg.showAlert('Vui lòng nhập số tiền hợp lệ (số nguyên dương, tối thiểu 10.000đ).');
+            return;
+        }
+        if (!window.db) {
+            tg.showAlert('Đang kết nối với máy chủ, vui lòng thử lại sau vài giây.');
+            return;
+        }
         const now = new Date();
         const hour = now.getHours();
         let note = '';
         if (hour >= 6 && hour < 18) note = 'Lãi sẽ được tính từ ngày mai.';
         else note = 'Nạp sau 18h, lãi tính từ ngày kia.';
-        const balance = await getBalance();
-        await setBalance(balance + amount);
-        await updateBalanceDisplay();
-        tg.showAlert('Nạp thành công ' + formatCurrency(amount) + '. ' + note);
-        hideDepositModal();
+        try {
+            const balance = await getBalance();
+            await setBalance(balance + amount);
+            await updateBalanceDisplay();
+            tg.showAlert('Nạp thành công ' + formatCurrency(amount) + '. ' + note);
+            hideDepositModal();
+        } catch (error) {
+            console.error('Lỗi nạp tiền:', error);
+            tg.showAlert('Lỗi khi nạp: ' + (error.message || 'Vui lòng thử lại'));
+        }
     }
 
     async function copyRefLink() {
         const refCode = userId;
-        const botUsername = 'supergardening_bot';
+        const botUsername = 'supergardening_bot'; // 
         const link = `https://t.me/${supergardening_bot}?start=${refCode}`;
         try {
             await navigator.clipboard.writeText(link);
@@ -560,7 +573,6 @@
         }
         let html = '';
         for (let r of refs) {
-            // Lấy profit của ref từ Firestore
             const refDocSnap = await getDoc(docRef(db, "users", r.id));
             const refData = refDocSnap.exists() ? refDocSnap.data() : {};
             const refProfit = refData.collectedProfit || r.profit || 0;
@@ -580,15 +592,15 @@
         document.querySelector(`.tab-item[data-page="${pageId}"]`).classList.add('active');
     }
 
-    // ========== XỬ LÝ GIỚI THIỆU (START PARAM) ==========
+    // ========== XỬ LÝ GIỚI THIỆU ==========
     async function handleReferral() {
         if (tg.initDataUnsafe?.start_param) {
             const refId = tg.initDataUnsafe.start_param;
+            if (refId === userId) return; // không tự mời mình
             const myDocSnap = await getDoc(userDoc());
             const myData = myDocSnap.exists() ? myDocSnap.data() : {};
             if (!myData.invitedBy) {
                 await setDoc(userDoc(), { invitedBy: refId }, { merge: true });
-                // Cập nhật refs của người mời
                 const refDoc = docRef(db, "users", refId);
                 const refSnap = await getDoc(refDoc);
                 if (refSnap.exists()) {
@@ -597,13 +609,15 @@
                     if (!refs.some(r => r.id === userId)) {
                         refs.push({ id: userId, name: user.first_name || 'Người mới', profit: 0 });
                         await setDoc(refDoc, { refs: refs }, { merge: true });
-                        // Thưởng 2k cho người mới
                         let bal = await getBalance();
                         bal += 2000;
                         await setBalance(bal);
                         await updateBalanceDisplay();
                         tg.showAlert('Bạn được giới thiệu! Nhận 2.000đ thưởng.');
                     }
+                } else {
+                    // Người mời chưa có tài khoản -> vẫn tạo ref rỗng
+                    await setDoc(refDoc, { refs: [{ id: userId, name: user.first_name || 'Người mới', profit: 0 }] }, { merge: true });
                 }
             }
         }
@@ -611,7 +625,8 @@
 
     // ========== KHỞI TẠO ==========
     async function initApp() {
-        // Đảm bảo db đã sẵn sàng
+        // Ẩn modal nạp tiền nếu đang mở (tránh lỗi hiển thị khi load)
+        document.getElementById('deposit-modal').classList.add('hidden');
         if (!window.db) {
             setTimeout(initApp, 200);
             return;
@@ -649,20 +664,18 @@
             tab.addEventListener('click', () => switchPage(tab.dataset.page));
         });
 
-        // Cập nhật định kỳ
+        // Cập nhật lãi định kỳ
         setInterval(async () => {
             await updateAllProfits();
             await updateBalanceDisplay();
         }, 60000);
     }
 
-    // Bắt đầu khi window đã sẵn sàng
+    // Bắt đầu khi window load
     window.addEventListener('load', () => {
-        // Chờ Firebase module hoàn thành
         if (window.db) {
             initApp();
         } else {
-            // thử lại sau 500ms
             setTimeout(initApp, 500);
         }
     });
